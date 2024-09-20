@@ -5,8 +5,8 @@ const schema = mongoose.Schema(
             type:String,
             required:true
         },
-        field:{
-            type:String,
+        dob:{
+            type:Date,
             required:true
         },
         emailid:{
@@ -24,15 +24,8 @@ const schema = mongoose.Schema(
         gender:{
             type:String,
             required:true
-        },
-        location:{
-            type:String,
-            required:true
-        },
-        experience:{
-            type:String,
-            required:true
         }
+        
 
 }
 )
