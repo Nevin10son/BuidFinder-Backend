@@ -16,8 +16,36 @@ app.use(cors())
 
 mongoose.connect("mongodb+srv://Nevin:nevintensonk@cluster0.0rfrr.mongodb.net/buildfinder?retryWrites=true&w=majority&appName=Cluster0")
 
-const storage = multer.memoryStorage();
+const storage =  multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, "uploads/")
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now()
+        cb(null, uniqueSuffix + file.originalname)
+    }
+})
+
 const upload = multer({storage:storage})
+
+app.post("/builderDashboard", (req, res) => {
+    let input = req.body
+    let token = req.headers.token
+    jwt.verify(token, "builderstoken", (error,decoded) => {
+        if (decoded && decoded.emailid) {
+            profileModel.find(input).then(
+                (items) => {
+                    res.json(items)
+                }
+            ).catch(
+                (error) => {
+                    res.json({"Error":error.message})
+                }
+            )
+        }
+        
+    } )
+})
 
 app.post("/clientsignin", async(req, res) => {
     let client = req.body
@@ -66,36 +94,43 @@ app.post("/clientsignup", async(req, res) => {
 
 app.post("/profile",upload.single('profilepic'), async(req, res) => {
     
+    
+    
+    
     let token = req.headers.token
+    console.log(token)
     jwt.verify(token,"builderstoken",async(error, decoded)=> {
         if (decoded && decoded.emailid){
-           let professional = await professionalModel.findOne({emailid:decoded.emailid})
-           let profileExist = await profileModel.findOne({userid:professional._id}) 
-            if (profileExist){
+            
+            
+           
+           let profileExist = await profileModel.find({userId:req.body.userId}) 
+           console.log(profileExist)
+            if (profileExist.length > 0){
                 res.json({"Status":"Profile already created"})
             }
-            else if (!profileExist) {
+            else if (profileExist == 0) {
+                
                
            
         
                 const profiles = new profileModel(
                     {   
-                        userid:professional._id,
+                        userId:req.body.userId,
                         firmname:req.body.firmname,
                         field:req.body.field,
                         experience:req.body.experience,
                         location:req.body.location,
                         language:req.body.language,
                         aboutme:req.body.aboutme,
-                        profilepic:{
-                            data:req.file.buffer,
-                            contentType:req.file.mimetype
-
-                    }
+                        profilepic:req.file.filename
                 }
                 )
+                console.log(profiles)
+                
                 await profiles.save()
                 res.json({"Status":"Profile Update"})
+
             }
         
         
@@ -123,7 +158,7 @@ app.post("/builderSignin", async(req, res)=> {
                             res.json({"Status":"Error","Error":error})
                         }
                         else {
-                            let profileCreated = await profileModel.findOne({userid:datas[0]._id})
+                            let profileCreated = await profileModel.findOne({userId:datas[0]._id})
                             res.json({"Status":"Success","token":token,"userid":datas[0]._id,"profileCreated":!!profileCreated})
                         }
                     })

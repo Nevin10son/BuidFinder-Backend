@@ -1,9 +1,10 @@
 const mongoose = require('mongoose')
 const schema = mongoose.Schema(
     {
-        userid:{
+        userId:{
             type:mongoose.Schema.Types.ObjectId,
-            ref:"Professional"
+            ref:"Professional",
+            required:true
         },
         firmname:{
             type:String,
@@ -30,8 +31,7 @@ const schema = mongoose.Schema(
             required:true
         },
         profilepic:{
-            data:Buffer,
-            contentType:String
+            type:String
         }
     }
 )
