@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const adminModel = require('./models/admin');
 const professionalModel = require('./models/professionals'); 
+const path = require('path')
 
 const multer = require('multer');
 const profileModel = require('./models/profie');
@@ -13,6 +14,7 @@ const clientModel = require('./models/client');
 const app = express()
 app.use(express.json())
 app.use(cors())
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 mongoose.connect("mongodb+srv://Nevin:nevintensonk@cluster0.0rfrr.mongodb.net/buildfinder?retryWrites=true&w=majority&appName=Cluster0")
 
@@ -27,6 +29,46 @@ const storage =  multer.diskStorage({
 })
 
 const upload = multer({storage:storage})
+
+app.post("/askQuestion", (res, req)=> {
+    let question = req.body
+    console.log(question)
+    let token = req.headers.token
+    jwt.verify(token, "clienttoken",(error, decoded) => {
+        if (decoded && decoded.emailid) {
+            
+        } else {
+            
+        }
+    })
+})
+
+app.post("/searchDesigns", (req, res) => {
+    let clientInput = req.body
+    console.log(clientInput)
+    let token = req.headers.token
+    jwt.verify(token, "clienttoken",(error,decoded) => {
+        if (decoded && decoded.emailid) {
+            console.log(decoded.emailid)
+            profileModel.find(clientInput).then(
+                (items) => {
+                    if (items.length == 0) {
+                        res.json({"Status":"No result"})
+                    } else {
+                        res.json(items)
+                    }   
+                }
+            ).catch(
+                (error) =>{
+                    res.json({"Error":error.message})
+                }
+            )
+        } else {
+            res.json({"Status":"Invalid Authentication"+error.message})
+        }
+    })
+
+})
 
 app.post("/builderDashboard", (req, res) => {
     let input = req.body
