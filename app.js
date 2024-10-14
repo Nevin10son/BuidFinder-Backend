@@ -7,9 +7,11 @@ const adminModel = require('./models/admin');
 const professionalModel = require('./models/professionals'); 
 const path = require('path')
 
+
 const multer = require('multer');
 const profileModel = require('./models/profie');
 const clientModel = require('./models/client');
+const questionModel = require('./models/question');
 
 const app = express()
 app.use(express.json())
@@ -30,18 +32,97 @@ const storage =  multer.diskStorage({
 
 const upload = multer({storage:storage})
 
-app.post("/askQuestion", (res, req)=> {
-    let question = req.body
-    console.log(question)
+app.post("/seeAnswers", async(req, res) => {
+    let input = req.body
     let token = req.headers.token
-    jwt.verify(token, "clienttoken",(error, decoded) => {
+    jwt.verify(token,"clienttoken", async(error, decoded) => {
         if (decoded && decoded.emailid) {
+            const questions = await questionModel.find(input).populate(
+                'answers.professionalId', 'name'
+            ).exec()
+            res.json({"Status":"Success", questions})
+        }else if (error) {
+            res.json({"Status":error.message})
+        }
+        else {
+            res.json({"Status":"Invalid Authentication"})
+        }
+    }).catch(
+        (err) => {
+            res.json({"Error":err.message})
+        }
+    )
+})
+
+app.post("/setAnswer", async(req, res) => {
+    let answer = req.body
+    console.log(answer)
+    let token = req.headers.token
+    jwt.verify(token, "builderstoken", async(error, decoded) => {
+        if (decoded && decoded.emailid) {
+            const newAnswer =  {
+                professionalId:req.body.professionalId,
+                answer:req.body.answer
+            }
+            await questionModel.findByIdAndUpdate(
+                req.body.questionId,
+                {$push: {
+                    answers: newAnswer
+                }}
+            )
+            res.json({"Status":"Answer added Successfully"})
             
+        }else{
+            res.json({"Error":error.message})
+        }
+    }).catch(
+        (error) => {
+            res.json({"Status":error.message})
+        }
+    )
+})
+
+app.post("/getQuestions", async(req, res) => {
+    let field = req.body
+    console.log(field)
+    let token = req.headers.token
+    jwt.verify(token,"builderstoken", async(error, decoded) => {
+        if (decoded && decoded.emailid) {
+            questionModel.find(field).then(
+                (questions) => {
+                    if(questions.length > 0) {
+                        console.log(questions)
+                        res.json(questions)
+                    }else{
+                        res.json({"Status":"No Questions"})
+                    }
+                }
+            )
         } else {
-            
+            res.json({"Error":error.message})
         }
     })
 })
+
+app.post("/askQuestion", async(req, res)=> {
+    let question = req.body
+    console.log(question)
+    let token = req.headers.token
+    jwt.verify(token, "clienttoken",async(error, decoded) => {
+        if (decoded && decoded.emailid) {
+            let questions = new questionModel(question)
+            await questions.save()
+            
+            res.json({"Status":"Success"})
+        } else if (error){
+            
+                res.json({"Error":"Error"})
+                
+            }
+        }
+)})
+
+
 
 app.post("/searchDesigns", (req, res) => {
     let clientInput = req.body
@@ -171,7 +252,7 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
                 console.log(profiles)
                 
                 await profiles.save()
-                res.json({"Status":"Profile Update"})
+                res.json({"Status":"Profile Update","field":profiles.field})
 
             }
         
