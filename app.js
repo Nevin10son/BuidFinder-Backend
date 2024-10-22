@@ -12,6 +12,8 @@ const multer = require('multer');
 const profileModel = require('./models/profie');
 const clientModel = require('./models/client');
 const questionModel = require('./models/question');
+const projectModel = require('./models/projects')
+const postModel = require('./models/post')
 
 const app = express()
 app.use(express.json())
@@ -30,29 +32,248 @@ const storage =  multer.diskStorage({
     }
 })
 
-const upload = multer({storage:storage})
+const projectStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/projects/') // Project images go here
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + file.originalname
+        cb(null, uniqueSuffix)
+    }
+});
 
-app.post("/seeAnswers", async(req, res) => {
-    let input = req.body
-    let token = req.headers.token
-    jwt.verify(token,"clienttoken", async(error, decoded) => {
-        if (decoded && decoded.emailid) {
-            const questions = await questionModel.find(input).populate(
-                'answers.professionalId', 'name'
-            ).exec()
-            res.json({"Status":"Success", questions})
-        }else if (error) {
-            res.json({"Status":error.message})
+const postStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/posts/') // Project images go here
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + file.originalname
+        cb(null, uniqueSuffix)
+    }
+});
+
+const upload = multer({storage:storage})
+const uploadProjectImages = multer({ storage: projectStorage })
+const uploadPostImages = multer({storage:postStorage})
+
+const imageUpload = uploadProjectImages.any(); // Accepts any field with files
+const postImageUpload = uploadPostImages.any();
+
+app.post('/getAllPosts', async (req, res) => {
+    const token = req.headers.token;
+    console.log(token) // Get the token from request headers
+  
+    jwt.verify(token, "clienttoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.status(401).json({ "Status": "Invalid Authentication" }); // Unauthorized access
+      }
+  
+      try {
+        // Fetch all posts from the database
+        const posts = await postModel.find() // Optionally populate professional data
+        
+        res.status(200).json(  posts );
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ "Status": "Error while fetching posts", error: err.message });
+      }
+    });
+  });
+  
+
+app.post('/viewAllPosts', async (req, res) => {
+    const token = req.headers.token;
+
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+        if (error || !decoded) {
+            return res.status(401).json({ "Status": "Invalid Authentication" });
         }
-        else {
+
+        try {
+            const { professionalId } = req.body;
+            
+
+            // Find posts for the given professionalId
+            const posts = await postModel.find({professionalId });
+
+            if (posts.length === 0) {
+                return res.status(404).json({ "Status": "No posts found" });
+            }
+
+            res.json({ "Status": "Posts fetched successfully", posts });
+        } catch (err) {
+            console.error('Error fetching posts:', err);
+            res.status(500).json({ "Status": "Error fetching posts", error: err.message });
+        }
+    });
+});
+
+app.post('/uploadPost',postImageUpload,async(req, res) => {
+    const token = req.headers.token
+
+    jwt.verify(token,"builderstoken",async(error, decoded) => {
+        if (error || !decoded) {
             res.json({"Status":"Invalid Authentication"})
         }
-    }).catch(
-        (err) => {
-            res.json({"Error":err.message})
+
+        try {
+            const { professionalId, description, cost } = req.body;
+
+            const images = req.files.map(file => ({
+                url:file.filename,
+              }));
+
+              const newPost = new postModel({
+                professionalId,
+                postedImages: images,
+                description: description || '', // Optional field
+                cost: cost || null, // Optional field
+              });
+
+              await newPost.save();
+              res.json({"Status":"Post Added Successfully",post: newPost});
+        }catch (err) {
+            console.error(err);
+            res.json({"Status":"Error while adding the post",error:err.messa})
         }
-    )
+
+    })
 })
+
+app.post('/getFullProjectDetails/:id', async (req, res) => {
+    console.log(req.params.id)
+    try {
+        const project = await projectModel.findById(req.params.id);
+        if (!project) {
+            return res.status(404).json({ message: 'Project not found' });
+        }
+        res.status(200).json(project);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching project details', error });
+    }
+});
+
+app.post("/ProfessionalViewProject", async (req, res) => {
+    const input = req.body;
+    const token = req.headers.token;
+  
+    // Verify the JWT token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.status(401).json({ Status: "Invalid Authentication" });
+      }
+  
+      try {
+        // Fetch projects for the authenticated professional
+        const projects = await projectModel.find(input).select(
+          '_id projectTitle categories clientname startdt enddt'
+        );
+  
+        if (!projects || projects.length === 0) {
+          return res.status(404).json({ message: 'No projects found for this professional.' });
+        }
+  
+        // Format the response with the required data
+        const formattedProjects = projects.map((project) => ({
+          id: project._id,
+          title: project.projectTitle,
+          clientName: project.clientname,
+          startDate: project.startdt,
+          endDate: project.enddt,
+          // Extract all images from nested categories
+          images: project.categories.flatMap((category) =>
+            category.images.map((img) => img.url)
+          ),
+        }));
+  
+        res.json(formattedProjects);
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        res.status(500).json({ message: 'Server error while fetching projects.' });
+      }
+    });
+  });
+  
+
+
+app.post('/addProject', imageUpload, async (req, res) => {
+    const token = req.headers.token;
+    console.log(token)
+
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+        if (error || !decoded) {
+            return res.json({ Status: "Invalid Authentication" });
+        }
+
+        try {
+            const {
+                professionalId, projectTitle, projectType, location, clientname,
+                startdt, enddt, workcost, constructionType, builtUpArea, bedrooms,
+                style, plotSize, scope, Description
+            } = req.body;
+
+            let categoriesParsed = [];
+            if (req.body.categories) {
+                categoriesParsed = JSON.parse(req.body.categories);
+            }
+
+            const projectExist = await projectModel.findOne({ professionalId, projectTitle });
+            if (projectExist) {
+                return res.json({ "Status": "Project already exists" });
+            }
+
+            // Group images by category
+            const categoriesWithImages = categoriesParsed.map((category, index) => ({
+                title: category.title,
+                images: req.files
+                    .filter(file => file.fieldname === `images-${index}`) // Match based on fieldname
+                    .map(file => ({ url: file.filename }))
+            }));
+
+            const newProject = new projectModel({
+                professionalId, projectTitle, projectType, location, clientname,
+                startdt, enddt, workcost, constructionType, builtUpArea, bedrooms,
+                style, plotSize, scope, Description, categories: categoriesWithImages
+            });
+
+            await newProject.save();
+            res.json({ "Status": "Project Added Successfully", project: newProject });
+
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ Status: "Error while adding project", error: err.message });
+        }
+    });
+});
+
+
+
+app.post("/seeAnswers", async (req, res) => {
+    let input = req.body
+    console.log(input)
+    let token = req.headers.token;
+    console.log(token)
+    jwt.verify(token, "clienttoken", async (error, decoded) => {
+        if (decoded && decoded.emailid) {  // Check if user is authenticated
+            console.log(decoded.emailid)
+            try {
+                const questions = await questionModel.find(
+                  input  // Filter questions by client ID
+                ).populate(
+                    'answers.professionalId', 'name'
+                ).exec()
+                console.log(questions)
+                res.json({ "Status": "Success", questions });
+            } catch (err) {
+                res.json({ "Error": err.message });
+            }
+        } else if (error) {
+            res.json({ "Status": error.message });
+        } else {
+            res.json({ "Status": "Invalid Authentication" });
+        }
+    });
+});
 
 app.post("/setAnswer", async(req, res) => {
     let answer = req.body
@@ -88,16 +309,18 @@ app.post("/getQuestions", async(req, res) => {
     let token = req.headers.token
     jwt.verify(token,"builderstoken", async(error, decoded) => {
         if (decoded && decoded.emailid) {
-            questionModel.find(field).then(
-                (questions) => {
+           let questions = await questionModel.find(field).populate(
+                "ClientId","name"
+           ).exec()
+                
                     if(questions.length > 0) {
                         console.log(questions)
                         res.json(questions)
                     }else{
                         res.json({"Status":"No Questions"})
                     }
-                }
-            )
+                
+            
         } else {
             res.json({"Error":error.message})
         }
@@ -185,7 +408,7 @@ app.post("/clientsignin", async(req, res) => {
                             res.json({"Status":"Error","Error":error})
                         }
                         else {
-                            res.json({"Status":"Success","token":token,"userid":detail[0]._id})
+                            res.json({"Status":"Success","token":token,"userid":detail[0]._id,"name":detail[0].name})
                         }
                     })
                     
@@ -252,7 +475,7 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
                 console.log(profiles)
                 
                 await profiles.save()
-                res.json({"Status":"Profile Update","field":profiles.field})
+                res.json({"Status":"Profile Update"})
 
             }
         
@@ -282,7 +505,8 @@ app.post("/builderSignin", async(req, res)=> {
                         }
                         else {
                             let profileCreated = await profileModel.findOne({userId:datas[0]._id})
-                            res.json({"Status":"Success","token":token,"userid":datas[0]._id,"profileCreated":!!profileCreated})
+                            let field = profileCreated.field
+                            res.json({"Status":"Success","token":token,"userid":datas[0]._id,"profileCreated":!!profileCreated,"field":field})
                         }
                     })
                 }
