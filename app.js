@@ -14,6 +14,7 @@ const clientModel = require('./models/client');
 const questionModel = require('./models/question');
 const projectModel = require('./models/projects')
 const postModel = require('./models/post')
+const productModel = require('./models/products')
 
 const app = express()
 app.use(express.json())
@@ -52,13 +53,138 @@ const postStorage = multer.diskStorage({
     }
 });
 
+const productStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/products')
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '_' + file.originalname
+        cb(null, uniqueSuffix)
+    }
+})
+
 const upload = multer({storage:storage})
 const uploadProjectImages = multer({ storage: projectStorage })
 const uploadPostImages = multer({storage:postStorage})
+const uploadProductImages = multer({storage:productStorage})
+
+
 
 const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
+const productImageUpload = uploadProductImages.any()
 
+app.post('/getProducts', async (req, res) => {
+    const token = req.headers.token;
+  
+    // Verify the token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.json({ "Status": "Invalid Authentication" });
+      }
+  
+      try {
+        const { productName } = req.body;  // Fetch productName from query params
+  
+        let query = {};
+        if (productName) {
+          // If productName is provided, add it to the query
+          query = { productName: { $regex: productName, $options: 'i' } };  // Case-insensitive search
+        }
+  
+        // Find products based on the query
+        const products = await productModel.find(query);
+  
+        // If no products are found
+        if (products.length === 0) {
+          return res.json({ "Status": "No products found" });
+        }
+  
+        // Respond with the products
+        res.status(200).json(products);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ "Status": "Error retrieving products", error: error.message });
+      }
+    });
+  });
+
+app.post('/getProfessionalProducts', async (req, res) => {
+    const token = req.headers.token;
+  
+    // Verify the token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.json({ "Status": "Invalid Authentication" });
+      }
+  
+      try {
+        const professionalId = req.body
+  
+        // Find all products by professionalId
+        const products = await productModel.find( professionalId );
+  
+        // If no products are found
+        if (products.length === 0) {
+          return res.json({ "Status": "No products found for this professional" });
+        }
+  
+        // Respond with the products
+        res.status(200).json(products);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ "Status": "Error retrieving products", error: error.message });
+      }
+    });
+  });
+  
+app.post('/addProducts', productImageUpload, async (req, res) => {
+    const token = req.headers.token;
+  
+    // Verify the token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.json({ "Status": "Invalid Authentication" });
+      }
+  
+      try {
+        // Extract product data from request body
+        const { professionalId, productName, cost, discount, productDetails, specification, soldBy, description } = req.body;
+  
+        // Extract images uploaded by multer
+        const productImages = req.files.map(file => ({
+          url: file.filename // Saving relative paths to productImages
+        }));
+  
+        // Create the new product
+        const newProduct = new productModel({
+          professionalId,
+          productName,
+          cost,
+          discount,
+          productDetails,
+          specification,
+          soldBy,
+          description,
+          productImages, // Assigning the uploaded image URLs to productImages array
+        });
+  
+        // Save the product to the database
+        await newProduct.save();
+  
+        // Respond with success
+        res.status(201).json(
+          
+           newProduct
+        );
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ "Status": "Error while adding the product", error: error.message });
+      }
+    });
+  });
+  
 app.post('/getAllPosts', async (req, res) => {
     const token = req.headers.token;
     console.log(token) // Get the token from request headers
@@ -80,7 +206,6 @@ app.post('/getAllPosts', async (req, res) => {
     });
   });
   
-
 app.post('/viewAllPosts', async (req, res) => {
     const token = req.headers.token;
 
@@ -194,8 +319,6 @@ app.post("/ProfessionalViewProject", async (req, res) => {
     });
   });
   
-
-
 app.post('/addProject', imageUpload, async (req, res) => {
     const token = req.headers.token;
     console.log(token)
@@ -245,8 +368,6 @@ app.post('/addProject', imageUpload, async (req, res) => {
         }
     });
 });
-
-
 
 app.post("/seeAnswers", async (req, res) => {
     let input = req.body
@@ -345,8 +466,6 @@ app.post("/askQuestion", async(req, res)=> {
         }
 )})
 
-
-
 app.post("/searchDesigns", (req, res) => {
     let clientInput = req.body
     console.log(clientInput)
@@ -439,17 +558,11 @@ app.post("/clientsignup", async(req, res) => {
 })
 
 app.post("/profile",upload.single('profilepic'), async(req, res) => {
-    
-    
-    
-    
+
     let token = req.headers.token
     console.log(token)
     jwt.verify(token,"builderstoken",async(error, decoded)=> {
         if (decoded && decoded.emailid){
-            
-            
-           
            let profileExist = await profileModel.find({userId:req.body.userId}) 
            console.log(profileExist)
             if (profileExist.length > 0){
