@@ -10,6 +10,10 @@ const schema = mongoose.Schema(
             type:String,
             required:true
         },
+        mobileno:{
+            type:String,
+            required:true
+        },
         field:{
             type:String,
             required:true

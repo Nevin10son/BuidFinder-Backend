@@ -75,6 +75,126 @@ const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
 
+app.delete('/deleteProduct/:productId', async (req, res) => {
+    const token = req.headers.token;
+  
+    // Verify token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.status(401).json({ "Status": "Invalid Authentication" });
+      }
+  
+      try {
+        const { productId } = req.params;
+  
+        // Find and delete the product
+        const deletedProduct = await productModel.findOneAndDelete({
+          _id: productId,
+           
+        });
+  
+        // Check if the product was found and deleted
+        if (!deletedProduct) {
+          return res.status(404).json({ "Status": "Product not found or unauthorized access" });
+        }
+  
+        res.status(200).json({ "Status": "Product deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting product:", error);
+        res.status(500).json({ "Status": "Error deleting product", error: error.message });
+      }
+    });
+  });
+  
+
+app.put('/editProduct', async (req, res) => {
+    const token = req.headers.token;
+  
+    // Verify the token
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.json({ "Status": "Invalid Authentication" });
+      }
+  
+      try {
+        const { productId, professionalId, updates } = req.body;
+  
+        // Update the product with new details if the professionalId matches
+        const updatedProduct = await productModel.findOneAndUpdate(
+          { _id: productId, professionalId: professionalId },  // Match by productId and professionalId
+          { $set: updates },  // Apply updates
+          { new: true }       // Return the updated document
+        );
+  
+        // Check if the product was found and updated
+        if (!updatedProduct) {
+          return res.status(404).json({ "Status": "Product not found or unauthorized access" });
+        }
+  
+        res.status(200).json({ "Status": "Product updated successfully", updatedProduct });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ "Status": "Error updating the product", error: error.message });
+      }
+    });
+  });
+  
+app.post("/ClientViewAllProjects", async (req, res) => {
+    const { style, cost } = req.body; // Optional filters
+    const token = req.headers.token;
+
+    // Verify the JWT token
+    jwt.verify(token, "clienttoken", async (error, decoded) => {
+      if (error || !decoded) {
+        return res.status(401).json({ Status: "Invalid Authentication" });
+      }
+
+      try {
+        // Create the filter object for query based on optional inputs
+        const filter = {};
+        if (style) filter.style = style; // Adjusted filter for style directly on project level
+        if (cost) filter.workcost = { $lte: cost }; // Adjusted filter for cost directly on project level
+
+        // Fetch projects from projectModel with the optional filters
+        const projects = await projectModel.find(filter).select(
+          '_id projectTitle projectType location clientname startdt enddt workcost constructionType builtUpArea bedrooms style plotSize scope Description categories'
+        );
+
+        if (!projects || projects.length === 0) {
+          return res.status(404).json({ message: 'No projects found matching the criteria.' });
+        }
+
+        // Format the response with the required data
+        const formattedProjects = projects.map((project) => ({
+          id: project._id,
+          title: project.projectTitle,
+          projectType: project.projectType,
+          location: project.location,
+          clientName: project.clientname,
+          startDate: project.startdt,
+          endDate: project.enddt,
+          workCost: project.workcost,
+          constructionType: project.constructionType,
+          builtUpArea: project.builtUpArea,
+          bedrooms: project.bedrooms,
+          style: project.style,
+          plotSize: project.plotSize,
+          scope: project.scope,
+          description: project.Description,
+          // Extract all images from nested categories
+          images: project.categories.flatMap((category) =>
+            category.images.map((img) => img.url)
+          ),
+        }));
+
+        res.json(formattedProjects);
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        res.status(500).json({ message: 'Server error while fetching projects.' });
+      }
+    });
+});
+
 app.post('/getProducts', async (req, res) => {
     const token = req.headers.token;
   
@@ -569,15 +689,13 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
                 res.json({"Status":"Profile already created"})
             }
             else if (profileExist == 0) {
-                
-               
-           
-        
+                        
                 const profiles = new profileModel(
                     {   
                         userId:req.body.userId,
                         firmname:req.body.firmname,
                         field:req.body.field,
+                        mobileno:req.body.mobileno,
                         experience:req.body.experience,
                         location:req.body.location,
                         language:req.body.language,
@@ -590,17 +708,12 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
                 await profiles.save()
                 res.json({"Status":"Profile Update"})
 
-            }
-        
-        
+            }   
     }
     else {
         res.json({"Status":"Invalid Authentication"})
-    }})
-    
-    
+    }})  
 })
-
 
 app.post("/builderSignin", async(req, res)=> {
     let buildercred = req.body
@@ -618,7 +731,7 @@ app.post("/builderSignin", async(req, res)=> {
                         }
                         else {
                             let profileCreated = await profileModel.findOne({userId:datas[0]._id})
-                            let field = profileCreated.field
+                            let field = profileCreated ? profileCreated.field : null
                             res.json({"Status":"Success","token":token,"userid":datas[0]._id,"profileCreated":!!profileCreated,"field":field})
                         }
                     })
@@ -630,7 +743,6 @@ app.post("/builderSignin", async(req, res)=> {
         }
     )
 })
-
 
 app.post("/buildersSignup", async(req, res)=> {
     let details = req.body
@@ -684,8 +796,6 @@ app.post("/adminSignIn", async(req, res)=>{
     )
 })
 
-
-
 app.post("/adminSignUp", async(req, res) =>{
     let admindata = req.body
     let hashedPwd = bcrypt.hashSync(admindata.password,10)
@@ -699,15 +809,10 @@ app.post("/adminSignUp", async(req, res) =>{
             }
             else {
                 res.json({"Error":"Admin already registered"})
-            }
-            
+            }  
         }
     )
 })
-
-
-
-
 
 app.listen(8000,() =>{
     console.log("Server Started")
