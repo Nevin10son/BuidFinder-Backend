@@ -34,8 +34,13 @@ const schema = mongoose.Schema(
             type:String,
             required:true
         },
+        Status:{
+            type:String,
+            required:true
+        },
         profilepic:{
-            type:String
+            type:String,
+            required:true
         }
     }
 )

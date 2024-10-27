@@ -700,6 +700,7 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
                         location:req.body.location,
                         language:req.body.language,
                         aboutme:req.body.aboutme,
+                        Status:req.body.Status,
                         profilepic:req.file.filename
                 }
                 )
