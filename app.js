@@ -14,7 +14,9 @@ const clientModel = require('./models/client');
 const questionModel = require('./models/question');
 const projectModel = require('./models/projects')
 const postModel = require('./models/post')
-const productModel = require('./models/products')
+const productModel = require('./models/products');
+const feedbackModel = require('./models/feedback')
+const { appendFile } = require('fs');
 
 const app = express()
 app.use(express.json())
@@ -75,6 +77,95 @@ const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
 
+app.post('/addFeedback/:userId', async (req, res) => {
+    try {
+        // Get the clientId from the session storage (or use your preferred auth mechanism)
+        
+        // Extract the professionalId from request parameters
+        const professionalId = req.params.userId;
+        console.log(professionalId)
+
+        // Extract feedback from the request body
+        console.log(req.body)
+        const { feedback, clientId } = req.body;
+        
+        if (!feedback || !professionalId) {
+            return res.status(400).json({ message: 'Missing required fields.' });
+        }
+
+        // Create a new feedback document
+        const newFeedback = new feedbackModel({
+            clientid: clientId,
+            professionlId: professionalId,
+            feedback: feedback
+        });
+
+        // Save the feedback to the database
+        await newFeedback.save();
+
+        res.status(201).json({ message: 'Feedback submitted successfully!' });
+    } catch (error) {
+        console.error('Error saving feedback:', error);
+        res.status(500).json({ message: 'Failed to submit feedback. Please try again later.' });
+    }
+});
+
+app.get('/professionals/:userId', async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      
+      // Fetch profile details from the database
+      const profile = await profileModel.findOne({ userId: userId });
+  
+      if (!profile) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+  
+      // Return the profile data
+      return res.status(200).json(profile);
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+app.put('/editProfile', upload.single('profilepic'), async (req, res) => {
+    const token = req.headers.token;
+
+    jwt.verify(token, "builderstoken", async (error, decoded) => {
+        if (error || !decoded) {
+            return res.json({ "Status": "Invalid Authentication" });
+        }
+
+        try {
+            // Get userId and updates from request
+            const userId = req.body.userId;
+            const updates = req.body.updates || {}; // Check if updates exists
+            
+            // If profile picture exists, add it to updates
+            if (req.file) {
+                updates.profilepic = req.file.filename;
+            }
+
+            // Update the profile in the database
+            const updatedProfile = await profileModel.findOneAndUpdate(
+                { userId: userId },
+                { $set: updates },
+                { new: true }
+            );
+
+            if (!updatedProfile) {
+                return res.status(404).json({ "Status": "Profile not found or unauthorized access" });
+            }
+
+            res.status(200).json({ "Status": "Profile updated successfully", updatedProfile });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ "Status": "Error updating the profile", error: error.message });
+        }
+    });
+});
+
 app.delete('/deleteProduct/:productId', async (req, res) => {
     const token = req.headers.token;
   
@@ -106,7 +197,6 @@ app.delete('/deleteProduct/:productId', async (req, res) => {
     });
   });
   
-
 app.put('/editProduct', async (req, res) => {
     const token = req.headers.token;
   
