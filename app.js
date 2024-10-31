@@ -16,6 +16,7 @@ const projectModel = require('./models/projects')
 const postModel = require('./models/post')
 const productModel = require('./models/products');
 const feedbackModel = require('./models/feedback')
+const requirementModel = require('./models/requirements')
 const { appendFile } = require('fs');
 
 const app = express()
@@ -76,6 +77,116 @@ const uploadProductImages = multer({storage:productStorage})
 const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
+
+app.get('/getFullProjectDetails/:projectId', async (req, res) => {
+    const { projectId } = req.params;
+  
+    try {
+      // Fetch project details using the projectId from the database
+      const projectDetails = await projectModel.findById(projectId);
+  
+      if (!projectDetails) {
+        return res.status(404).json({ message: 'Project not found' });
+      }
+  
+      // Send project details in response
+      console.log(projectDetails)
+      res.status(200).json(projectDetails);
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      res.status(500).json({ message: 'An error occurred while fetching project details' });
+    }
+  });
+
+app.get('/projects/:professionalId', async (req, res) => {
+    const { professionalId } = req.params;
+    try {
+      const projects = await projectModel.find({ professionalId }); // Fetch projects where the professionalId matches
+      res.status(200).json(projects);
+      console.log(projects)
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      res.status(500).json({ message: 'Failed to fetch projects. Please try again later.' });
+    }
+  });
+
+app.post('/updateStatus', async (req, res) => {
+    const { professionalId } = req.body;
+    console.log(professionalId)
+  
+    try {
+      await profileModel.findOneAndUpdate(
+        { userId: professionalId },
+        { Status: 'Currently Occupied' }
+      );
+      res.status(200).json({ message: 'Status updated to Currently Occupied' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to update status', error });
+    }
+  });
+
+app.post('/getJobOffers', async (req, res) => {
+    const { professionalId } = req.body;
+    console.log(professionalId)
+    try {
+      const jobOffers = await requirementModel.find({ professionalId }).populate('clientId', 'name');
+      console.log(jobOffers)
+      res.status(200).json(jobOffers);
+    } catch (error) {
+      console.error('Error fetching job offers:', error);
+      res.status(500).json({ message: 'Failed to load job offers. Please try again later.' });
+    }
+  });
+
+app.post('/getfeedback', async (req, res) => {
+    const userId = req.body.professionalId;
+    console.log("Professional ID:", userId);
+
+    try {
+        // Populate 'clientId' to get client details (name, etc.) from the 'clients' collection
+        const feedbacks = await feedbackModel.find({ professionlId: userId })
+            .populate('clientid', 'name'); // Adjust 'name' to the actual field name in the clients schema for the client’s name
+
+        console.log("Feedbacks with client details:", feedbacks);
+        res.status(200).json(feedbacks);
+    } catch (error) {
+        console.error('Error fetching feedback:', error);
+        res.status(500).json({ message: 'Failed to load feedback. Please try again later.' });
+    }
+});
+
+app.post('/addJobRequirement/:userId', async (req, res) => {
+    try {
+      console.log(req.body)
+      const { clientId, jobType, location, description, budget, area, timeline } = req.body;
+      const  professionalId  = req.params.userId;
+      console.log(professionalId)
+  
+      // Validate that all required fields are provided
+      if (!clientId || !professionalId || !jobType || !location || !description || !budget || !area || !timeline) {
+        return res.status(400).json({ message: 'All fields are required' });
+      }
+  
+      // Create a new requirement instance
+      const newRequirement = new requirementModel({
+        clientId,
+        professionalId,
+        jobType,
+        location,
+        description,
+        budget,
+        area,
+        timeline,
+      });
+  
+      // Save the requirement to the database
+      await newRequirement.save();
+      res.status(201).json({ message: 'Job requirement added successfully' });
+    } catch (error) {
+      console.error('Error adding job requirement:', error);
+      res.status(500).json({ message: 'Failed to add job requirement. Please try again later.' });
+    }
+  });
 
 app.post('/addFeedback/:userId', async (req, res) => {
     try {
@@ -260,9 +371,9 @@ app.post("/ClientViewAllProjects", async (req, res) => {
           title: project.projectTitle,
           projectType: project.projectType,
           location: project.location,
-          clientName: project.clientname,
-          startDate: project.startdt,
-          endDate: project.enddt,
+          clientname: project.clientname,
+          startdt: project.startdt,
+          enddt: project.enddt,
           workCost: project.workcost,
           constructionType: project.constructionType,
           builtUpArea: project.builtUpArea,
@@ -289,7 +400,7 @@ app.post('/getProducts', async (req, res) => {
     const token = req.headers.token;
   
     // Verify the token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, "clienttoken", async (error, decoded) => {
       if (error || !decoded) {
         return res.json({ "Status": "Invalid Authentication" });
       }
