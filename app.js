@@ -78,6 +78,39 @@ const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
 
+app.post('/updateJobStatus', async (req, res) => {
+  const { professionalId, jobId, action } = req.body;
+  
+  console.log(jobId)
+  console.log(action)
+  const token = req.headers.token;
+
+  jwt.verify(token, "builderstoken", async (error, decoded) => {
+    if (error || !decoded) {
+      return res.status(401).json({ Status: "Invalid Authentication" });
+    }
+
+    try {
+      // Update offer status in the job requirement
+      const offerStatus = action === 'accept' ? 'accepted' : 'declined';
+      await requirementModel.findByIdAndUpdate(jobId, { offerStatus });
+
+      // If action is "accept," update the professional's status in their profile
+      if (action === 'accept') {
+        await profileModel.findOneAndUpdate(
+          { userId: professionalId },
+          { Status: 'currently occupied' }
+        );
+      }
+
+      res.status(200).json({ Status: "Job status updated successfully" });
+    } catch (err) {
+      console.error("Error updating job status:", err);
+      res.status(500).json({ Status: "Error updating job status", error: err.message });
+    }
+  });
+});
+
 app.get('/getFullProjectDetails/:projectId', async (req, res) => {
     const { projectId } = req.params;
   
@@ -517,7 +550,10 @@ app.post('/getAllPosts', async (req, res) => {
   
       try {
         // Fetch all posts from the database
-        const posts = await postModel.find() // Optionally populate professional data
+        const posts = await postModel.find().populate({
+          path: 'professionalId', // assuming 'professionalId' is the field in postModel referring to professionalModel
+          select: 'name' // Select only the 'name' field from the professional model
+      }); // Optionally populate professional data
         
         res.status(200).json(  posts );
       } catch (err) {
