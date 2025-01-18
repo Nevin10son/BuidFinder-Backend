@@ -6,7 +6,8 @@ const schema = new mongoose.Schema({
         ref: 'clients'
     },
     professionalId: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref:'Professional',
         required: true
     },
     jobType: {

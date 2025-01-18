@@ -78,6 +78,46 @@ const imageUpload = uploadProjectImages.any(); // Accepts any field with files
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
 
+app.delete('/deleteJob/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  console.log(jobId)
+
+  try {
+    // Find and delete the job from the database
+    const deletedJob = await requirementModel.findByIdAndDelete(jobId);
+
+    if (!deletedJob) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    res.status(200).json({ message: 'Job deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting job:', error);
+    res.status(500).json({ message: 'Failed to delete job' });
+  }
+});
+
+app.get('/getClientJobs', async (req, res) => {
+  try {
+
+    const clientId = req.query.clientId;
+    console.log(clientId)
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+    
+    // Fetch jobs for the client with their current status and updates
+    const jobs = await requirementModel.find({ clientId })
+      .populate('professionalId', 'name') // Populate professional's name if needed
+      .exec();
+    
+    res.status(200).json(jobs);
+  } catch (error) {
+    console.error('Error fetching client jobs:', error);
+    res.status(500).json({ error: 'Failed to retrieve jobs. Please try again later.' });
+  }
+});
+
 app.post('/updateJobStatus', async (req, res) => {
   const { professionalId, jobId, action } = req.body;
   
