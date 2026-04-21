@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,7 +7,6 @@ const jwt = require('jsonwebtoken');
 const adminModel = require('./models/admin');
 const professionalModel = require('./models/professionals'); 
 const path = require('path')
-
 
 const multer = require('multer');
 const profileModel = require('./models/profie');
@@ -21,12 +21,17 @@ const { appendFile } = require('fs');
 
 const app = express()
 app.use(express.json())
-app.use(cors())
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    credentials: true
+}))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-mongoose.connect("mongodb+srv://Nevin:nevintensonk@cluster0.0rfrr.mongodb.net/buildfinder?retryWrites=true&w=majority&appName=Cluster0")
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log("MongoDB connected successfully"))
+    .catch(err => console.error("MongoDB connection error:", err))
 
-const storage =  multer.diskStorage({
+const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, "uploads/")
     },
@@ -38,7 +43,7 @@ const storage =  multer.diskStorage({
 
 const projectStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/projects/') // Project images go here
+        cb(null, 'uploads/projects/')
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + file.originalname
@@ -48,7 +53,7 @@ const projectStorage = multer.diskStorage({
 
 const postStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/posts/') // Project images go here
+        cb(null, 'uploads/posts/')
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + file.originalname
@@ -59,7 +64,6 @@ const postStorage = multer.diskStorage({
 const productStorage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'uploads/products')
-
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '_' + file.originalname
@@ -72,9 +76,7 @@ const uploadProjectImages = multer({ storage: projectStorage })
 const uploadPostImages = multer({storage:postStorage})
 const uploadProductImages = multer({storage:productStorage})
 
-
-
-const imageUpload = uploadProjectImages.any(); // Accepts any field with files
+const imageUpload = uploadProjectImages.any();
 const postImageUpload = uploadPostImages.any();
 const productImageUpload = uploadProductImages.any()
 
@@ -125,7 +127,7 @@ app.post('/updateJobStatus', async (req, res) => {
   console.log(action)
   const token = req.headers.token;
 
-  jwt.verify(token, "builderstoken", async (error, decoded) => {
+  jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
     if (error || !decoded) {
       return res.status(401).json({ Status: "Invalid Authentication" });
     }
@@ -316,7 +318,7 @@ app.get('/professionals/:userId', async (req, res) => {
 app.put('/editProfile', upload.single('profilepic'), async (req, res) => {
     const token = req.headers.token;
 
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
         if (error || !decoded) {
             return res.json({ "Status": "Invalid Authentication" });
         }
@@ -354,7 +356,7 @@ app.delete('/deleteProduct/:productId', async (req, res) => {
     const token = req.headers.token;
   
     // Verify token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
       if (error || !decoded) {
         return res.status(401).json({ "Status": "Invalid Authentication" });
       }
@@ -385,7 +387,7 @@ app.put('/editProduct', async (req, res) => {
     const token = req.headers.token;
   
     // Verify the token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
       if (error || !decoded) {
         return res.json({ "Status": "Invalid Authentication" });
       }
@@ -418,7 +420,7 @@ app.post("/ClientViewAllProjects", async (req, res) => {
     const token = req.headers.token;
 
     // Verify the JWT token
-    jwt.verify(token, "clienttoken", async (error, decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret, async (error, decoded) => {
       if (error || !decoded) {
         return res.status(401).json({ Status: "Invalid Authentication" });
       }
@@ -473,7 +475,7 @@ app.post('/getProducts', async (req, res) => {
     const token = req.headers.token;
   
     // Verify the token
-    jwt.verify(token, "clienttoken", async (error, decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret, async (error, decoded) => {
       if (error || !decoded) {
         return res.json({ "Status": "Invalid Authentication" });
       }
@@ -508,7 +510,7 @@ app.post('/getProfessionalProducts', async (req, res) => {
     const token = req.headers.token;
   
     // Verify the token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
       if (error || !decoded) {
         return res.json({ "Status": "Invalid Authentication" });
       }
@@ -537,7 +539,7 @@ app.post('/addProducts', productImageUpload, async (req, res) => {
     const token = req.headers.token;
   
     // Verify the token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
       if (error || !decoded) {
         return res.json({ "Status": "Invalid Authentication" });
       }
@@ -583,7 +585,7 @@ app.post('/getAllPosts', async (req, res) => {
     const token = req.headers.token;
     console.log(token) // Get the token from request headers
   
-    jwt.verify(token, "clienttoken", async (error, decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret, async (error, decoded) => {
       if (error || !decoded) {
         return res.status(401).json({ "Status": "Invalid Authentication" }); // Unauthorized access
       }
@@ -606,7 +608,7 @@ app.post('/getAllPosts', async (req, res) => {
 app.post('/viewAllPosts', async (req, res) => {
     const token = req.headers.token;
 
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
         if (error || !decoded) {
             return res.status(401).json({ "Status": "Invalid Authentication" });
         }
@@ -633,7 +635,7 @@ app.post('/viewAllPosts', async (req, res) => {
 app.post('/uploadPost',postImageUpload,async(req, res) => {
     const token = req.headers.token
 
-    jwt.verify(token,"builderstoken",async(error, decoded) => {
+    jwt.verify(token,process.env.JWT_BUILDER_SECRET,async(error, decoded) => {
         if (error || !decoded) {
             res.json({"Status":"Invalid Authentication"})
         }
@@ -680,7 +682,7 @@ app.post("/ProfessionalViewProject", async (req, res) => {
     const token = req.headers.token;
   
     // Verify the JWT token
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
       if (error || !decoded) {
         return res.status(401).json({ Status: "Invalid Authentication" });
       }
@@ -720,7 +722,7 @@ app.post('/addProject', imageUpload, async (req, res) => {
     const token = req.headers.token;
     console.log(token)
 
-    jwt.verify(token, "builderstoken", async (error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async (error, decoded) => {
         if (error || !decoded) {
             return res.json({ Status: "Invalid Authentication" });
         }
@@ -771,7 +773,7 @@ app.post("/seeAnswers", async (req, res) => {
     console.log(input)
     let token = req.headers.token;
     console.log(token)
-    jwt.verify(token, "clienttoken", async (error, decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret, async (error, decoded) => {
         if (decoded && decoded.emailid) {  // Check if user is authenticated
             console.log(decoded.emailid)
             try {
@@ -797,7 +799,7 @@ app.post("/setAnswer", async(req, res) => {
     let answer = req.body
     console.log(answer)
     let token = req.headers.token
-    jwt.verify(token, "builderstoken", async(error, decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, async(error, decoded) => {
         if (decoded && decoded.emailid) {
             const newAnswer =  {
                 professionalId:req.body.professionalId,
@@ -825,7 +827,7 @@ app.post("/getQuestions", async(req, res) => {
     let field = req.body
     console.log(field)
     let token = req.headers.token
-    jwt.verify(token,"builderstoken", async(error, decoded) => {
+    jwt.verify(token,process.env.JWT_BUILDER_SECRET, async(error, decoded) => {
         if (decoded && decoded.emailid) {
            let questions = await questionModel.find(field).populate(
                 "ClientId","name"
@@ -849,7 +851,7 @@ app.post("/askQuestion", async(req, res)=> {
     let question = req.body
     console.log(question)
     let token = req.headers.token
-    jwt.verify(token, "clienttoken",async(error, decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret,async(error, decoded) => {
         if (decoded && decoded.emailid) {
             let questions = new questionModel(question)
             await questions.save()
@@ -867,7 +869,7 @@ app.post("/searchDesigns", (req, res) => {
     let clientInput = req.body
     console.log(clientInput)
     let token = req.headers.token
-    jwt.verify(token, "clienttoken",(error,decoded) => {
+    jwt.verify(token, process.env.jwt_client_secret,(error,decoded) => {
         if (decoded && decoded.emailid) {
             console.log(decoded.emailid)
             profileModel.find(clientInput).then(
@@ -893,7 +895,7 @@ app.post("/searchDesigns", (req, res) => {
 app.post("/builderDashboard", (req, res) => {
     let input = req.body
     let token = req.headers.token
-    jwt.verify(token, "builderstoken", (error,decoded) => {
+    jwt.verify(token, process.env.JWT_BUILDER_SECRET, (error,decoded) => {
         if (decoded && decoded.emailid) {
             profileModel.find(input).then(
                 (items) => {
@@ -919,7 +921,7 @@ app.post("/clientsignin", async(req, res) => {
             } else {
                 let passcheck = bcrypt.compareSync(client.password,detail[0].password)
                 if (passcheck) {
-                    jwt.sign({emailid:client.emailid},"clienttoken",{expiresIn:"1d"},(error, token) => {
+                    jwt.sign({emailid:client.emailid},process.env.jwt_client_secret,{expiresIn:"1d"},(error, token) => {
                         if (error) {
                             res.json({"Status":"Error","Error":error})
                         }
@@ -958,7 +960,7 @@ app.post("/profile",upload.single('profilepic'), async(req, res) => {
 
     let token = req.headers.token
     console.log(token)
-    jwt.verify(token,"builderstoken",async(error, decoded)=> {
+    jwt.verify(token,process.env.JWT_BUILDER_SECRET,async(error, decoded)=> {
         if (decoded && decoded.emailid){
            let profileExist = await profileModel.find({userId:req.body.userId}) 
            console.log(profileExist)
@@ -1002,8 +1004,8 @@ app.post("/builderSignin", async(req, res)=> {
             }
             else {
                 let pwdValidator = bcrypt.compareSync(buildercred.password,datas[0].password)
-                if (pwdValidator) {
-                    jwt.sign({emailid:buildercred.emailid},"builderstoken",{expiresIn:"1d"},async(error, token) => {
+                  if (pwdValidator) {
+                    jwt.sign({emailid:buildercred.emailid},process.env.JWT_BUILDER_SECRET,{expiresIn:"1d"},async(error, token) => {
                         if (error){
                             res.json({"Status":"Error","Error":error})
                         }
@@ -1050,7 +1052,7 @@ app.post("/adminSignIn", async(req, res)=>{
             else{
             let passwordValidator = bcrypt.compareSync(admincred.password,item[0].password)
             if (passwordValidator) {
-                jwt.sign({username:admincred.username},"Admintoken",{expiresIn:"1d"},(error, token) => {
+                jwt.sign({username:admincred.username},process.env.JWT_ADMIN_SECRET,{expiresIn:"1d"},(error, token) => {
                     if (error) {
                         res.json({"Status":"Error", "Error":error})
                     }
@@ -1092,6 +1094,7 @@ app.post("/adminSignUp", async(req, res) =>{
     )
 })
 
-app.listen(8000,() =>{
-    console.log("Server Started")
+const PORT = process.env.PORT || 8000
+app.listen(PORT, () => {
+    console.log(`Server Started on port ${PORT}`)
 })
